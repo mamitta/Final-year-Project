@@ -1,0 +1,112 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  
+}
+
+//
+// ENUMS
+//
+
+enum Role {
+  DONOR
+  HOSPITAL
+}
+
+enum BloodGroup {
+  A_POS
+  A_NEG
+  B_POS
+  B_NEG
+  AB_POS
+  AB_NEG
+  O_POS
+  O_NEG
+}
+
+enum RequestStatus {
+  ACTIVE
+  FULFILLED
+  CANCELLED
+}
+
+//
+// MODELS
+//
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  phone     String   @unique
+  password  String
+  role      Role
+  createdAt DateTime @default(now())
+
+  donor         Donor?
+  hospital      Hospital?
+  notifications Notification[]
+
+  @@map("users")
+}
+
+model Donor {
+  id               String     @id @default(cuid())
+  userId           String     @unique
+  firstName        String
+  lastName         String
+  bloodGroup       BloodGroup
+  county           String
+  town             String
+  lastDonationDate DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("donors")
+}
+
+model Hospital {
+  id     String @id @default(cuid())
+  userId String @unique
+  name   String
+  county String
+  town   String
+  phone  String
+
+  user     User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  requests DonationRequest[]
+
+  @@map("hospitals")
+}
+
+model DonationRequest {
+  id          String        @id @default(cuid())
+  hospitalId  String
+  bloodGroup  BloodGroup
+  unitsNeeded Int
+  status      RequestStatus @default(ACTIVE)
+  county      String
+  town        String
+  createdAt   DateTime      @default(now())
+
+  hospital      Hospital       @relation(fields: [hospitalId], references: [id])
+  notifications Notification[]
+
+  @@map("donation_requests")
+}
+
+model Notification {
+  id            String   @id @default(cuid())
+  userId        String
+  requestId     String
+  message       String
+  sentAt        DateTime @default(now())
+  gavaMessageId String?
+
+  user    User            @relation(fields: [userId], references: [id])
+  request DonationRequest @relation(fields: [requestId], references: [id])
+
+  @@map("notifications")
+}
