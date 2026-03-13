@@ -1,3 +1,4 @@
+import { errorHandler } from "./middleware/errorHandler";
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
@@ -25,5 +26,7 @@ app.use("/api/notifications", notificationRoutes);
 app.get("/health", (_req, res) => {
     res.json({ status: "ok" });
 });
+
+app.use(errorHandler);
 
 export default app;

@@ -1,5 +1,6 @@
 import { prisma } from "../../config/prisma";
 import { BloodGroup } from "@prisma/client";
+import { AppError } from "../../middleware/errorHandler";
 
 const GAVA_API_URL = "https://api.gavaconnect.com/v1/sms/send"; // update if different
 const GAVA_API_KEY = process.env.GAVA_API_KEY as string;
@@ -30,7 +31,7 @@ export const broadcastToMatchingDonors = async (requestId: string) => {
         include: { hospital: true },
     });
 
-    if (!request) throw new Error("Request not found");
+    if (!request) throw new AppError("Request not found", 404);
 
     // Find donors matching blood group who donated more than 56 days ago (or never)
     const cutoffDate = new Date();

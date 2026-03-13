@@ -1,5 +1,6 @@
 import { prisma } from "../../config/prisma";
 import { BloodGroup, RequestStatus } from "@prisma/client";
+import { AppError } from "../../middleware/errorHandler";
 
 interface CreateRequestInput {
     bloodGroup: BloodGroup;
@@ -10,7 +11,7 @@ interface CreateRequestInput {
 
 export const createRequest = async (userId: string, input: CreateRequestInput) => {
     const hospital = await prisma.hospital.findUnique({ where: { userId } });
-    if (!hospital) throw new Error("Hospital profile not found");
+    if (!hospital) throw new AppError("Hospital profile not found", 404);
 
     return prisma.donationRequest.create({
         data: {
@@ -34,7 +35,7 @@ export const getAllRequests = async () => {
 
 export const getMyRequests = async (userId: string) => {
     const hospital = await prisma.hospital.findUnique({ where: { userId } });
-    if (!hospital) throw new Error("Hospital profile not found");
+    if (!hospital) throw new AppError("Hospital profile not found", 404);
 
     return prisma.donationRequest.findMany({
         where: { hospitalId: hospital.id },
@@ -48,11 +49,11 @@ export const updateRequestStatus = async (
     status: RequestStatus
 ) => {
     const hospital = await prisma.hospital.findUnique({ where: { userId } });
-    if (!hospital) throw new Error("Hospital profile not found");
+    if (!hospital) throw new AppError("Hospital profile not found", 404);
 
     const request = await prisma.donationRequest.findUnique({ where: { id: requestId } });
-    if (!request) throw new Error("Request not found");
-    if (request.hospitalId !== hospital.id) throw new Error("Forbidden");
+    if (!request) throw new AppError("Request not found", 404);
+    if (request.hospitalId !== hospital.id) throw new AppError("Forbidden", 403);
 
     return prisma.donationRequest.update({
         where: { id: requestId },

@@ -2,6 +2,7 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { prisma } from "../../config/prisma";
 import { Role, BloodGroup } from "@prisma/client";
+import { AppError } from "../../middleware/errorHandler";
 
 interface RegisterDonorInput {
     email: string;
@@ -37,7 +38,7 @@ const generateToken = (id: string, role: string): string => {
 
 export const registerDonor = async (input: RegisterDonorInput) => {
     const existing = await prisma.user.findUnique({ where: { email: input.email } });
-    if (existing) throw new Error("Email already in use");
+    if (existing) throw new AppError("Email already in use", 400);
 
     const hashedPassword = await bcrypt.hash(input.password, 10);
 
@@ -66,7 +67,7 @@ export const registerDonor = async (input: RegisterDonorInput) => {
 
 export const registerHospital = async (input: RegisterHospitalInput) => {
     const existing = await prisma.user.findUnique({ where: { email: input.email } });
-    if (existing) throw new Error("Email already in use");
+    if (existing) throw new AppError("Email already in use", 400);
 
     const hashedPassword = await bcrypt.hash(input.password, 10);
 
@@ -98,10 +99,10 @@ export const login = async (input: LoginInput) => {
         include: { donor: true, hospital: true },
     });
 
-    if (!user) throw new Error("Invalid email or password");
+    if (!user) throw new AppError("Invalid email or password", 401);
 
     const valid = await bcrypt.compare(input.password, user.password);
-    if (!valid) throw new Error("Invalid email or password");
+    if (!valid) throw new AppError("Invalid email or password", 401);
 
     const token = generateToken(user.id, user.role);
     return {

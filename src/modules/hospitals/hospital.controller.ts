@@ -1,8 +1,9 @@
-import { Response } from "express";
+import { NextFunction,Response } from "express";
 import { AuthRequest } from "../../middleware/auth";
 import * as hospitalService from "./hospital.service";
 
-export const getMyProfile = async (req: AuthRequest, res: Response): Promise<void> => {
+
+export const getMyProfile = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
         const hospital = await hospitalService.getMyProfile(req.user!.id);
         if (!hospital) {
@@ -10,25 +11,25 @@ export const getMyProfile = async (req: AuthRequest, res: Response): Promise<voi
             return;
         }
         res.json(hospital);
-    } catch (error: any) {
-        res.status(500).json({ message: error.message });
+    } catch (err) {
+        next(err);
     }
 };
 
-export const updateMyProfile = async (req: AuthRequest, res: Response): Promise<void> => {
+export const updateMyProfile = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
         const hospital = await hospitalService.updateMyProfile(req.user!.id, req.body);
         res.json(hospital);
-    } catch (error: any) {
-        res.status(500).json({ message: error.message });
+    } catch (err) {
+        next(err);
     }
 };
 
-export const getAllHospitals = async (_req: AuthRequest, res: Response): Promise<void> => {
+export const getAllHospitals = async (_req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
         const hospitals = await hospitalService.getAllHospitals();
         res.json(hospitals);
-    } catch (error: any) {
-        res.status(500).json({ message: error.message });
+    } catch (err) {
+        next(err);
     }
 };
