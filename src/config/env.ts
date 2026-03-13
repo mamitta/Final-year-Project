@@ -4,7 +4,6 @@ const envSchema = z.object({
     DATABASE_URL: z.string().min(1, "DATABASE_URL is required"),
     JWT_SECRET: z.string().min(1, "JWT_SECRET is required"),
     JWT_EXPIRES_IN: z.string().default("7d"),
-    GAVA_API_KEY: z.string().min(1, "GAVA_API_KEY is required"),
     PORT: z.string().default("3000"),
 });
 

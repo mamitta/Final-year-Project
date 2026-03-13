@@ -1,3 +1,5 @@
+import swaggerUi from "swagger-ui-express";
+import { swaggerSpec } from "./config/swagger";
 import { errorHandler } from "./middleware/errorHandler";
 import express from "express";
 import cors from "cors";
@@ -12,8 +14,17 @@ const app = express();
 
 // Middleware
 app.use(helmet());
-app.use(cors());
+app.use(cors(
+    {
+        origin: "http://localhost:3000",
+        methods: ["GET", "POST", "PATCH", "DELETE"],
+        allowedHeaders: ["Content-Type", "Authorization"],
+    }
+));
 app.use(express.json());
+
+// Swagger
+app.use("/api/docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 // Routes
 app.use("/api/auth", authRoutes);
