@@ -91,7 +91,6 @@ export default function RegisterPage() {
             <div className="px-8 py-10">
               {/* Header */}
               <div className="text-center mb-8">
-                <span className="text-4xl">🩸</span>
                 <h1 className="font-display text-3xl font-bold text-gray-900 mt-3">
                   Join HemoLink
                 </h1>
@@ -112,7 +111,7 @@ export default function RegisterPage() {
                         : "text-gray-500 hover:text-gray-700"
                     }`}
                   >
-                    {t === "DONOR" ? "🩸 I'm a Donor" : "🏥 I'm a Hospital"}
+                    {t === "DONOR" ? " I'm a Donor" : "I'm a Hospital"}
                   </button>
                 ))}
               </div>

@@ -9,6 +9,7 @@ import donorRoutes from "./modules/donors/donor.routes";
 import hospitalRoutes from "./modules/hospitals/hospital.routes";
 import requestRoutes from "./modules/requests/request.routes";
 import notificationRoutes from "./modules/notifications/notification.routes";
+import postRoutes from "./modules/posts/post.routes";
 
 const app = express();
 
@@ -32,6 +33,7 @@ app.use("/api/donors", donorRoutes);
 app.use("/api/hospitals", hospitalRoutes);
 app.use("/api/requests", requestRoutes);
 app.use("/api/notifications", notificationRoutes);
+app.use("/api/posts", postRoutes);
 
 // Health check
 app.get("/health", (_req, res) => {

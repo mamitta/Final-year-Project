@@ -57,7 +57,6 @@ export default function LoginPage() {
             <div className="px-8 py-10">
               {/* Header */}
               <div className="text-center mb-8">
-                <span className="text-4xl">🩸</span>
                 <h1 className="font-display text-3xl font-bold text-gray-900 mt-3">
                   Welcome back
                 </h1>

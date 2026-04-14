@@ -77,8 +77,21 @@ model Hospital {
 
   user     User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   requests DonationRequest[]
+  posts    Post[]
 
   @@map("hospitals")
+}
+
+model Post {
+  id         String   @id @default(cuid())
+  hospitalId String
+  title      String
+  content    String
+  createdAt  DateTime @default(now())
+
+  hospital Hospital @relation(fields: [hospitalId], references: [id])
+
+  @@map("posts")
 }
 
 model DonationRequest {

@@ -5,6 +5,7 @@ import api from "../../api/axios";
 import Navbar from "../../components/Navbar";
 import Footer from "../../components/Footer";
 import Button from "../../components/Button";
+import ProfileDrawer from "../../components/ProfileDrawer";
 
 interface DonorProfile {
   id: string;
@@ -28,15 +29,26 @@ interface Notification {
   };
 }
 
+interface Post {
+  id: string;
+  title: string;
+  content: string;
+  createdAt: string;
+  hospital: { name: string; county: string; town: string };
+}
+
 const formatBloodGroup = (bg: string) => bg.replace("_POS", "+").replace("_NEG", "-");
 
 export default function DonorDashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
+
   const [profile, setProfile] = useState<DonorProfile | null>(null);
   const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [activeTab, setActiveTab] = useState<"overview" | "notifications" | "edit">("overview");
+  const [posts, setPosts] = useState<Post[]>([]);
+  const [activeTab, setActiveTab] = useState<"feed" | "notifications" | "edit">("feed");
   const [loading, setLoading] = useState(true);
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const [editForm, setEditForm] = useState({ county: "", town: "" });
   const [editLoading, setEditLoading] = useState(false);
   const [editSuccess, setEditSuccess] = useState(false);
@@ -48,12 +60,14 @@ export default function DonorDashboard() {
 
   const fetchData = async () => {
     try {
-      const [profileRes, notifRes] = await Promise.all([
+      const [profileRes, notifRes, postsRes] = await Promise.all([
         api.get("/donors/me"),
         api.get("/notifications/mine"),
+        api.get("/posts"),
       ]);
       setProfile(profileRes.data);
       setNotifications(notifRes.data);
+      setPosts(postsRes.data);
       setEditForm({
         county: profileRes.data.county,
         town: profileRes.data.town,
@@ -96,20 +110,33 @@ export default function DonorDashboard() {
       <Navbar />
 
       <main className="flex-1 max-w-5xl mx-auto w-full px-4 py-10">
-        {/* Welcome header */}
-        <div className="mb-8">
-          <h1 className="font-display text-3xl font-bold text-gray-900">
-            Welcome back, {profile?.firstName}! 👋
-          </h1>
-          <p className="font-body text-gray-500 mt-1">
-            Your blood group:{" "}
-            <span className="inline-block bg-red-100 text-red-700 font-bold px-3 py-0.5 rounded-full text-sm">
-              {formatBloodGroup(profile?.bloodGroup || "")}
+        {/* Header */}
+        <div className="flex items-start justify-between mb-8">
+          <div>
+            <h1 className="font-display text-3xl font-bold text-gray-900">
+              Welcome back, {profile?.firstName}! 👋
+            </h1>
+            <p className="font-body text-gray-500 mt-1">
+              Your blood group:{" "}
+              <span className="inline-block bg-red-100 text-red-700 font-bold px-3 py-0.5 rounded-full text-sm">
+                {formatBloodGroup(profile?.bloodGroup || "")}
+              </span>
+            </p>
+          </div>
+
+          {/* Profile button */}
+          <button
+            onClick={() => setDrawerOpen(true)}
+            className="flex items-center gap-2 bg-white border border-gray-200 hover:border-red-300 hover:shadow-md px-4 py-2.5 rounded-2xl transition-all text-sm font-medium text-gray-700"
+          >
+            <span className="w-7 h-7 rounded-full blood-gradient flex items-center justify-center text-white text-xs font-bold">
+              {profile?.firstName?.[0]}{profile?.lastName?.[0]}
             </span>
-          </p>
+            My Profile
+          </button>
         </div>
 
-        {/* Stats row */}
+        {/* Stats */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
           {[
             { label: "Blood Group", value: formatBloodGroup(profile?.bloodGroup || ""), icon: "🩸" },
@@ -132,7 +159,7 @@ export default function DonorDashboard() {
 
         {/* Tabs */}
         <div className="flex bg-white rounded-2xl border border-gray-100 shadow-sm p-1 mb-6 w-fit">
-          {(["overview", "notifications", "edit"] as const).map((t) => (
+          {(["feed", "notifications", "edit"] as const).map((t) => (
             <button
               key={t}
               onClick={() => setActiveTab(t)}
@@ -142,39 +169,56 @@ export default function DonorDashboard() {
                   : "text-gray-500 hover:text-gray-700"
               }`}
             >
-              {t === "notifications" ? `Notifications (${notifications.length})` : t}
+              {t === "notifications"
+                ? `Notifications (${notifications.length})`
+                : t === "feed"
+                ? "📰 News Feed"
+                : "Edit Profile"}
             </button>
           ))}
         </div>
 
-        {/* Overview tab */}
-        {activeTab === "overview" && (
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-8">
-            <h2 className="font-display text-xl font-bold text-gray-900 mb-6">Profile Details</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-              {[
-                { label: "First Name", value: profile?.firstName },
-                { label: "Last Name", value: profile?.lastName },
-                { label: "Email", value: profile?.user.email },
-                { label: "Phone", value: profile?.user.phone },
-                { label: "Blood Group", value: formatBloodGroup(profile?.bloodGroup || "") },
-                { label: "County", value: profile?.county },
-                { label: "Town", value: profile?.town },
-                {
-                  label: "Last Donation",
-                  value: profile?.lastDonationDate
-                    ? new Date(profile.lastDonationDate).toLocaleDateString()
-                    : "Not recorded",
-                },
-              ].map((item) => (
-                <div key={item.label}>
-                  <div className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-1">
-                    {item.label}
+        {/* News Feed tab */}
+        {activeTab === "feed" && (
+          <div className="space-y-4">
+            {posts.length === 0 ? (
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-12 text-center">
+                <span className="text-4xl">📭</span>
+                <p className="font-body text-gray-500 mt-3">No posts yet.</p>
+                <p className="font-body text-gray-400 text-sm mt-1">
+                  Hospitals will post blood donation news and updates here.
+                </p>
+              </div>
+            ) : (
+              posts.map((post) => (
+                <div key={post.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 card-hover">
+                  <div className="flex items-start justify-between gap-4 mb-3">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 rounded-full blood-gradient flex items-center justify-center text-white text-xs font-bold">
+                        🏥
+                      </div>
+                      <div>
+                        <p className="font-body text-sm font-medium text-gray-900">
+                          {post.hospital.name}
+                        </p>
+                        <p className="font-body text-xs text-gray-400">
+                          {post.hospital.town}, {post.hospital.county}
+                        </p>
+                      </div>
+                    </div>
+                    <span className="text-xs text-gray-400 whitespace-nowrap">
+                      {new Date(post.createdAt).toLocaleDateString()}
+                    </span>
                   </div>
-                  <div className="font-body text-gray-900 font-medium">{item.value}</div>
+                  <h3 className="font-display text-lg font-bold text-gray-900 mb-2">
+                    {post.title}
+                  </h3>
+                  <p className="font-body text-gray-600 text-sm leading-relaxed">
+                    {post.content}
+                  </p>
                 </div>
-              ))}
-            </div>
+              ))
+            )}
           </div>
         )}
 
@@ -218,14 +262,14 @@ export default function DonorDashboard() {
         {/* Edit tab */}
         {activeTab === "edit" && (
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-8 max-w-md">
-            <h2 className="font-display text-xl font-bold text-gray-900 mb-6">Update Location</h2>
-
+            <h2 className="font-display text-xl font-bold text-gray-900 mb-6">
+              Update Location
+            </h2>
             {editSuccess && (
               <div className="bg-green-50 border border-green-200 text-green-700 text-sm rounded-xl px-4 py-3 mb-6">
                 Profile updated successfully!
               </div>
             )}
-
             <form onSubmit={handleEditSubmit} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">County</label>
@@ -254,6 +298,28 @@ export default function DonorDashboard() {
       </main>
 
       <Footer />
+
+      {/* Profile Drawer */}
+      <ProfileDrawer
+        isOpen={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        title="My Profile"
+        fields={[
+          { label: "First Name", value: profile?.firstName },
+          { label: "Last Name", value: profile?.lastName },
+          { label: "Email", value: profile?.user.email },
+          { label: "Phone", value: profile?.user.phone },
+          { label: "Blood Group", value: formatBloodGroup(profile?.bloodGroup || "") },
+          { label: "County", value: profile?.county },
+          { label: "Town", value: profile?.town },
+          {
+            label: "Last Donation",
+            value: profile?.lastDonationDate
+              ? new Date(profile.lastDonationDate).toLocaleDateString()
+              : "Not recorded",
+          },
+        ]}
+      />
     </div>
   );
 }

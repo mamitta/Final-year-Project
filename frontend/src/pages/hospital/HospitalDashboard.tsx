@@ -5,6 +5,7 @@ import api from "../../api/axios";
 import Navbar from "../../components/Navbar";
 import Footer from "../../components/Footer";
 import Button from "../../components/Button";
+import ProfileDrawer from "../../components/ProfileDrawer";
 
 interface HospitalProfile {
   id: string;
@@ -25,6 +26,14 @@ interface DonationRequest {
   createdAt: string;
 }
 
+interface Post {
+  id: string;
+  title: string;
+  content: string;
+  createdAt: string;
+  hospital: { name: string; county: string; town: string };
+}
+
 const BLOOD_GROUPS = ["A_POS", "A_NEG", "B_POS", "B_NEG", "AB_POS", "AB_NEG", "O_POS", "O_NEG"];
 const formatBloodGroup = (bg: string) => bg.replace("_POS", "+").replace("_NEG", "-");
 
@@ -40,19 +49,22 @@ export default function HospitalDashboard() {
 
   const [profile, setProfile] = useState<HospitalProfile | null>(null);
   const [requests, setRequests] = useState<DonationRequest[]>([]);
-  const [activeTab, setActiveTab] = useState<"overview" | "requests" | "new">("overview");
+  const [posts, setPosts] = useState<Post[]>([]);
+  const [activeTab, setActiveTab] = useState<"requests" | "new" | "posts" | "newpost">("requests");
   const [loading, setLoading] = useState(true);
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const [broadcastLoading, setBroadcastLoading] = useState<string | null>(null);
   const [broadcastResult, setBroadcastResult] = useState<{ id: string; sent: number } | null>(null);
 
   const [newRequest, setNewRequest] = useState({
-    bloodGroup: "A_POS",
-    unitsNeeded: 1,
-    county: "",
-    town: "",
+    bloodGroup: "A_POS", unitsNeeded: 1, county: "", town: "",
   });
   const [requestLoading, setRequestLoading] = useState(false);
   const [requestSuccess, setRequestSuccess] = useState(false);
+
+  const [newPost, setNewPost] = useState({ title: "", content: "" });
+  const [postLoading, setPostLoading] = useState(false);
+  const [postSuccess, setPostSuccess] = useState(false);
 
   useEffect(() => {
     if (!user) { navigate("/login"); return; }
@@ -61,12 +73,14 @@ export default function HospitalDashboard() {
 
   const fetchData = async () => {
     try {
-      const [profileRes, requestsRes] = await Promise.all([
+      const [profileRes, requestsRes, postsRes] = await Promise.all([
         api.get("/hospitals/me"),
         api.get("/requests/mine"),
+        api.get("/posts/mine"),
       ]);
       setProfile(profileRes.data);
       setRequests(requestsRes.data);
+      setPosts(postsRes.data);
       setNewRequest((prev) => ({
         ...prev,
         county: profileRes.data.county,
@@ -91,18 +105,41 @@ export default function HospitalDashboard() {
       setRequestSuccess(true);
       setTimeout(() => { setRequestSuccess(false); setActiveTab("requests"); }, 2000);
     } catch {
-      // handle error
     } finally {
       setRequestLoading(false);
+    }
+  };
+
+  const handleCreatePost = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPostLoading(true);
+    try {
+      const res = await api.post("/posts", newPost);
+      setPosts((prev) => [res.data, ...prev]);
+      setNewPost({ title: "", content: "" });
+      setPostSuccess(true);
+      setTimeout(() => { setPostSuccess(false); setActiveTab("posts"); }, 2000);
+    } catch {
+    } finally {
+      setPostLoading(false);
+    }
+  };
+
+  const handleDeletePost = async (postId: string) => {
+    try {
+      await api.delete(`/posts/${postId}`);
+      setPosts((prev) => prev.filter((p) => p.id !== postId));
+    } catch {
     }
   };
 
   const handleStatusChange = async (requestId: string, status: string) => {
     try {
       const res = await api.patch(`/requests/${requestId}/status`, { status });
-      setRequests((prev) => prev.map((r) => r.id === requestId ? { ...r, status: res.data.status } : r));
+      setRequests((prev) =>
+        prev.map((r) => r.id === requestId ? { ...r, status: res.data.status } : r)
+      );
     } catch {
-      // handle error
     }
   };
 
@@ -113,7 +150,6 @@ export default function HospitalDashboard() {
       setBroadcastResult({ id: requestId, sent: res.data.sent });
       setTimeout(() => setBroadcastResult(null), 4000);
     } catch {
-      // handle error
     } finally {
       setBroadcastLoading(null);
     }
@@ -139,13 +175,26 @@ export default function HospitalDashboard() {
 
       <main className="flex-1 max-w-5xl mx-auto w-full px-4 py-10">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="font-display text-3xl font-bold text-gray-900">
-            {profile?.name} 🏥
-          </h1>
-          <p className="font-body text-gray-500 mt-1">
-            {profile?.town}, {profile?.county}
-          </p>
+        <div className="flex items-start justify-between mb-8">
+          <div>
+            <h1 className="font-display text-3xl font-bold text-gray-900">
+              {profile?.name} 🏥
+            </h1>
+            <p className="font-body text-gray-500 mt-1">
+              {profile?.town}, {profile?.county}
+            </p>
+          </div>
+
+          {/* Profile button */}
+          <button
+            onClick={() => setDrawerOpen(true)}
+            className="flex items-center gap-2 bg-white border border-gray-200 hover:border-red-300 hover:shadow-md px-4 py-2.5 rounded-2xl transition-all text-sm font-medium text-gray-700"
+          >
+            <span className="w-7 h-7 rounded-full blood-gradient flex items-center justify-center text-white text-xs font-bold">
+              🏥
+            </span>
+            Hospital Profile
+          </button>
         </div>
 
         {/* Stats */}
@@ -164,45 +213,26 @@ export default function HospitalDashboard() {
         </div>
 
         {/* Tabs */}
-        <div className="flex bg-white rounded-2xl border border-gray-100 shadow-sm p-1 mb-6 w-fit">
-          {(["overview", "requests", "new"] as const).map((t) => (
+        <div className="flex flex-wrap bg-white rounded-2xl border border-gray-100 shadow-sm p-1 mb-6 w-fit gap-1">
+          {([
+            { key: "requests", label: `Requests (${requests.length})` },
+            { key: "new", label: "+ New Request" },
+            { key: "posts", label: `📰 Posts (${posts.length})` },
+            { key: "newpost", label: "+ New Post" },
+          ] as const).map((t) => (
             <button
-              key={t}
-              onClick={() => setActiveTab(t)}
-              className={`px-5 py-2 rounded-xl text-sm font-medium capitalize transition-all ${
-                activeTab === t
+              key={t.key}
+              onClick={() => setActiveTab(t.key)}
+              className={`px-4 py-2 rounded-xl text-sm font-medium transition-all ${
+                activeTab === t.key
                   ? "bg-red-700 text-white shadow-sm"
                   : "text-gray-500 hover:text-gray-700"
               }`}
             >
-              {t === "new" ? "+ New Request" : t === "requests" ? `Requests (${requests.length})` : t}
+              {t.label}
             </button>
           ))}
         </div>
-
-        {/* Overview tab */}
-        {activeTab === "overview" && (
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-8">
-            <h2 className="font-display text-xl font-bold text-gray-900 mb-6">Hospital Details</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-              {[
-                { label: "Hospital Name", value: profile?.name },
-                { label: "Email", value: profile?.user.email },
-                { label: "Account Phone", value: profile?.user.phone },
-                { label: "Hospital Phone", value: profile?.phone },
-                { label: "County", value: profile?.county },
-                { label: "Town", value: profile?.town },
-              ].map((item) => (
-                <div key={item.label}>
-                  <div className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-1">
-                    {item.label}
-                  </div>
-                  <div className="font-body text-gray-900 font-medium">{item.value}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
 
         {/* Requests tab */}
         {activeTab === "requests" && (
@@ -211,12 +241,7 @@ export default function HospitalDashboard() {
               <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-12 text-center">
                 <span className="text-4xl">📋</span>
                 <p className="font-body text-gray-500 mt-3">No requests yet.</p>
-                <Button
-                  variant="primary"
-                  size="md"
-                  onClick={() => setActiveTab("new")}
-                  className="mt-4"
-                >
+                <Button variant="primary" size="md" onClick={() => setActiveTab("new")} className="mt-4">
                   Create First Request
                 </Button>
               </div>
@@ -240,23 +265,17 @@ export default function HospitalDashboard() {
                         Created {new Date(req.createdAt).toLocaleDateString()}
                       </p>
                     </div>
-
                     <div className="flex items-center gap-2 flex-wrap">
-                      {/* Broadcast button */}
-                      {req.status === "ACTIVE" && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleBroadcast(req.id)}
-                          disabled={broadcastLoading === req.id}
-                        >
-                          {broadcastLoading === req.id ? "Sending..." : "📲 Broadcast"}
-                        </Button>
-                      )}
-
-                      {/* Status change */}
                       {req.status === "ACTIVE" && (
                         <>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleBroadcast(req.id)}
+                            disabled={broadcastLoading === req.id}
+                          >
+                            {broadcastLoading === req.id ? "Sending..." : "📲 Broadcast"}
+                          </Button>
                           <Button
                             variant="primary"
                             size="sm"
@@ -274,8 +293,6 @@ export default function HospitalDashboard() {
                       )}
                     </div>
                   </div>
-
-                  {/* Broadcast result */}
                   {broadcastResult?.id === req.id && (
                     <div className="mt-3 bg-green-50 border border-green-200 text-green-700 text-sm rounded-xl px-4 py-2">
                       ✅ SMS sent to {broadcastResult.sent} eligible donor{broadcastResult.sent !== 1 ? "s" : ""}!
@@ -287,19 +304,15 @@ export default function HospitalDashboard() {
           </div>
         )}
 
-        {/* New request tab */}
+        {/* New Request tab */}
         {activeTab === "new" && (
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-8 max-w-md">
-            <h2 className="font-display text-xl font-bold text-gray-900 mb-6">
-              New Blood Request
-            </h2>
-
+            <h2 className="font-display text-xl font-bold text-gray-900 mb-6">New Blood Request</h2>
             {requestSuccess && (
               <div className="bg-green-50 border border-green-200 text-green-700 text-sm rounded-xl px-4 py-3 mb-6">
-                ✅ Request created! Redirecting to requests...
+                ✅ Request created! Redirecting...
               </div>
             )}
-
             <form onSubmit={handleCreateRequest} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">Blood Group Needed</label>
@@ -313,7 +326,6 @@ export default function HospitalDashboard() {
                   ))}
                 </select>
               </div>
-
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">Units Needed</label>
                 <input
@@ -324,7 +336,6 @@ export default function HospitalDashboard() {
                   className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-red-300 transition"
                 />
               </div>
-
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">County</label>
                 <input
@@ -335,7 +346,6 @@ export default function HospitalDashboard() {
                   className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-red-300 transition"
                 />
               </div>
-
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">Town</label>
                 <input
@@ -346,9 +356,85 @@ export default function HospitalDashboard() {
                   className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-red-300 transition"
                 />
               </div>
-
               <Button type="submit" variant="primary" size="lg" disabled={requestLoading} className="w-full">
                 {requestLoading ? "Creating..." : "Create Request"}
+              </Button>
+            </form>
+          </div>
+        )}
+
+        {/* Posts tab */}
+        {activeTab === "posts" && (
+          <div className="space-y-4">
+            {posts.length === 0 ? (
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-12 text-center">
+                <span className="text-4xl">📝</span>
+                <p className="font-body text-gray-500 mt-3">No posts yet.</p>
+                <Button variant="primary" size="md" onClick={() => setActiveTab("newpost")} className="mt-4">
+                  Create First Post
+                </Button>
+              </div>
+            ) : (
+              posts.map((post) => (
+                <div key={post.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1">
+                      <h3 className="font-display text-lg font-bold text-gray-900 mb-2">
+                        {post.title}
+                      </h3>
+                      <p className="font-body text-gray-600 text-sm leading-relaxed">
+                        {post.content}
+                      </p>
+                      <p className="font-body text-gray-400 text-xs mt-3">
+                        Posted {new Date(post.createdAt).toLocaleDateString()}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => handleDeletePost(post.id)}
+                      className="text-xs text-gray-400 hover:text-red-500 transition-colors whitespace-nowrap"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        )}
+
+        {/* New Post tab */}
+        {activeTab === "newpost" && (
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-8 max-w-lg">
+            <h2 className="font-display text-xl font-bold text-gray-900 mb-6">New Post</h2>
+            {postSuccess && (
+              <div className="bg-green-50 border border-green-200 text-green-700 text-sm rounded-xl px-4 py-3 mb-6">
+                ✅ Post published! Redirecting...
+              </div>
+            )}
+            <form onSubmit={handleCreatePost} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Title</label>
+                <input
+                  value={newPost.title}
+                  onChange={(e) => setNewPost({ ...newPost, title: e.target.value })}
+                  placeholder="e.g. Urgent: O- Blood Needed"
+                  required
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-red-300 transition"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Content</label>
+                <textarea
+                  value={newPost.content}
+                  onChange={(e) => setNewPost({ ...newPost, content: e.target.value })}
+                  placeholder="Share updates, news, or blood donation information..."
+                  required
+                  rows={5}
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-red-300 transition resize-none"
+                />
+              </div>
+              <Button type="submit" variant="primary" size="lg" disabled={postLoading} className="w-full">
+                {postLoading ? "Publishing..." : "Publish Post"}
               </Button>
             </form>
           </div>
@@ -356,6 +442,21 @@ export default function HospitalDashboard() {
       </main>
 
       <Footer />
+
+      {/* Profile Drawer */}
+      <ProfileDrawer
+        isOpen={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        title={profile?.name || "Hospital Profile"}
+        fields={[
+          { label: "Hospital Name", value: profile?.name },
+          { label: "Email", value: profile?.user.email },
+          { label: "Account Phone", value: profile?.user.phone },
+          { label: "Hospital Phone", value: profile?.phone },
+          { label: "County", value: profile?.county },
+          { label: "Town", value: profile?.town },
+        ]}
+      />
     </div>
   );
 }
